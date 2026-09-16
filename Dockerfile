@@ -1,5 +1,7 @@
 FROM ubuntu:24.04
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
 # Base tools + ffmpeg suite
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -30,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tmux \
     openssh-client \
     poppler-utils \
+    mosh \
     rsync \
     && rm -rf /var/lib/apt/lists/*
 
