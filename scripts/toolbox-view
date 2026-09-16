@@ -1,0 +1,100 @@
+#!/usr/bin/env sh
+# toolbox-view — open a file that lives on the remote toolbox container in your
+# LOCAL environment. Runs on Linux and macOS (POSIX sh).
+#
+# It never installs anything on the container: the file is streamed over the
+# same SSH channel used for mosh. Images render inline when your terminal
+# speaks a graphics protocol (kitty/ghostty/foot/WezTerm/iTerm2); everything
+# else (PDFs, or a non-graphics terminal) is copied to a temp file and handed
+# to your desktop's default application.
+#
+# Usage:
+#   toolbox-view [-H user@host] [-p port] [-i identity] [-d] <remote-path>
+#
+# Options:
+#   -H  ssh destination      (default: $TOOLBOX_HOST, else root@10.10.10.9)
+#   -p  ssh port             (default: $TOOLBOX_PORT, else 2222)
+#   -i  ssh identity file    (default: ssh's own resolution)
+#   -d  force download+open  (skip inline rendering even for images)
+#
+# Examples:
+#   toolbox-view /mnt/tank/pics/photo.png
+#   toolbox-view -H root@nas.local -p 2222 /mnt/tank/docs/report.pdf
+set -eu
+
+HOST="${TOOLBOX_HOST:-root@10.10.10.9}"
+PORT="${TOOLBOX_PORT:-2222}"
+IDENTITY=""
+FORCE_DL=0
+
+while getopts "H:p:i:dh" opt; do
+  case "$opt" in
+    H) HOST="$OPTARG" ;;
+    p) PORT="$OPTARG" ;;
+    i) IDENTITY="$OPTARG" ;;
+    d) FORCE_DL=1 ;;
+    h) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "toolbox-view: unknown option" >&2; exit 2 ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+if [ $# -lt 1 ]; then
+  echo "toolbox-view: missing <remote-path> (try -h)" >&2
+  exit 2
+fi
+REMOTE="$1"
+
+SSH_OPTS="-p $PORT"
+[ -n "$IDENTITY" ] && SSH_OPTS="$SSH_OPTS -i $IDENTITY"
+# shellcheck disable=SC2086
+ssh_run() { ssh $SSH_OPTS "$HOST" "$@"; }
+
+base=$(basename -- "$REMOTE")
+ext=$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]' | sed 's/.*\.//')
+
+is_image=0
+case "$ext" in
+  png|jpg|jpeg|gif|bmp|webp|tiff|tif|ppm|pgm|pbm|avif|heic) is_image=1 ;;
+esac
+
+# Pick an inline image renderer for the current terminal, if any.
+img_render=""
+if [ -t 1 ] && [ "$FORCE_DL" -eq 0 ] && [ "$is_image" -eq 1 ]; then
+  if [ -n "${KITTY_WINDOW_ID:-}" ] && command -v kitten >/dev/null 2>&1; then
+    img_render="kitten icat"
+  elif [ -n "${WEZTERM_PANE:-}" ] && command -v wezterm >/dev/null 2>&1; then
+    img_render="wezterm imgcat"
+  elif command -v imgcat >/dev/null 2>&1; then       # iTerm2 helper
+    img_render="imgcat"
+  elif command -v chafa >/dev/null 2>&1; then         # graceful fallback
+    img_render="chafa"
+  fi
+fi
+
+if [ -n "$img_render" ]; then
+  # Stream the remote file straight into the terminal image renderer.
+  # shellcheck disable=SC2086
+  ssh_run "cat -- '$REMOTE'" | $img_render -
+  exit 0
+fi
+
+# Otherwise: copy to a temp file and open with the OS default application.
+tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/toolbox-view.XXXXXX")
+local_file="$tmpdir/$base"
+# shellcheck disable=SC2086
+ssh_run "cat -- '$REMOTE'" > "$local_file"
+
+opener=""
+case "$(uname -s)" in
+  Darwin) opener="open" ;;
+  Linux)  opener="xdg-open" ;;
+  *)      opener="xdg-open" ;;
+esac
+
+if command -v "$opener" >/dev/null 2>&1; then
+  "$opener" "$local_file"
+  echo "toolbox-view: opened $base with $opener ($local_file)" >&2
+else
+  echo "toolbox-view: no '$opener' found; file saved at $local_file" >&2
+fi

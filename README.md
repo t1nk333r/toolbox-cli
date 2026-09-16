@@ -79,6 +79,74 @@ writes into a mounted dataset is owned by `root`. If that conflicts with how
 other apps access those datasets, you will need to `chown` afterwards. Running
 as a non-root user with a matching UID/GID is tracked as a separate change.
 
+## Remote access (SSH + mosh)
+
+The image runs a key-only SSH server purely as a bootstrap channel, so you can
+reach the container directly — including with [mosh](https://mosh.org) for a
+connection that survives roaming and flaky links.
+
+Authorize a public key (nothing else grants access) either inline via the
+`SSH_PUBKEY` environment variable or by mounting a file at `/authorized_keys`:
+
+```bash
+# compose.yaml already wires SSH_PUBKEY from TOOLBOX_SSH_PUBKEY in .env
+echo "TOOLBOX_SSH_PUBKEY=$(cat ~/.ssh/id_ed25519.pub)" >> .env
+```
+
+Ports: host `2222` -> container `22` (SSH bootstrap; `22` is usually taken by
+the host), plus `60000-60010/udp` for mosh sessions.
+
+```bash
+ssh  -p 2222 root@<host>                        # plain shell
+mosh --ssh="ssh -p 2222" -p 60000:60010 root@<host>   # resilient shell
+```
+
+**mosh vs. images:** mosh does not pass terminal graphics escape sequences, so
+use plain **SSH** for anything that renders images (see below). mosh is for the
+text session.
+
+## Viewing PDFs and images in your local environment
+
+The container has no GUI — viewers run on **your** machine. Two ways:
+
+### Inline in the terminal (no copy) — SSH only
+
+If your terminal speaks a graphics protocol (kitty, ghostty, foot, WezTerm,
+iTerm2), images and the first page of PDFs (via `pdftoppm`) render inline:
+
+```bash
+ssh -p 2222 -t root@<host> yazi /mnt          # browse; previews appear inline
+ssh -p 2222 root@<host> 'cat /path/img.png' | kitten icat   # one image, kitty
+```
+
+### Open in your desktop's default app — Linux, macOS, Windows
+
+`scripts/toolbox-view` (Linux/macOS) and `scripts/toolbox-view.ps1` (Windows)
+stream a remote file to your machine and hand it to the OS default application
+(multi-page/interactive PDFs, or any non-graphics terminal). They install
+nothing on the container.
+
+```bash
+# Linux / macOS
+export TOOLBOX_HOST=root@<host>          # or pass -H
+scripts/toolbox-view /mnt/tank/docs/report.pdf        # download + xdg-open/open
+scripts/toolbox-view /mnt/tank/pics/photo.png         # inline if terminal supports it
+scripts/toolbox-view -d /mnt/tank/pics/photo.png      # force download + open
+```
+
+```powershell
+# Windows (PowerShell, built-in OpenSSH client)
+$env:TOOLBOX_HOST = "root@<host>"
+.\scripts\toolbox-view.ps1 /mnt/tank/docs/report.pdf  # scp + Start-Process
+```
+
+Per-OS opener: `xdg-open` (Linux), `open` (macOS), `Start-Process` (Windows).
+Override host/port with `-H`/`-p` (`-SshHost`/`-Port` on Windows) or the
+`TOOLBOX_HOST` / `TOOLBOX_PORT` environment variables.
+
+Prefer mounting the whole tree instead? `sshfs -p 2222 root@<host>:/mnt
+~/toolbox` (Linux/macOS, needs sshfs/macFUSE) then open files normally.
+
 ## Aliases (included in image)
 
 - `cat` -> `batcat --paging=never`
