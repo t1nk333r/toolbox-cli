@@ -28,7 +28,8 @@ RUN apt-get update && apt-get install -y \
     htop \
     tmux \
     openssh-client \
-    # rsync \
+    pdftoppm
+    rsync \
     && rm -rf /var/lib/apt/lists/*
 
 # eza
