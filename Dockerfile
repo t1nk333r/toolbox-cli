@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     htop \
     tmux \
     openssh-client \
-    pdftoppm
+    poppler-utils \
     rsync \
     && rm -rf /var/lib/apt/lists/*
 
