@@ -6,6 +6,16 @@ services:
     container_name: toolbox
     stdin_open: true
     tty: true
+    environment:
+      # Public key authorized for the key-only sshd (the mosh bootstrap
+      # channel). Replace with your own key, or mount one at /authorized_keys.
+      - SSH_PUBKEY=${TOOLBOX_SSH_PUBKEY:-}
+    ports:
+      # SSH bootstrap for mosh. Host 2222 -> container 22 (22 is often taken by
+      # the host, e.g. TrueNAS). Plain ssh also works on this port.
+      - "2222:22"
+      # mosh UDP session range; one port per concurrent session.
+      - "60000-60010:60000-60010/udp"
     working_dir: /work
     volumes:
       # Default: your home directory, overridable with TOOLBOX_MOUNT in .env.
