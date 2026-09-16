@@ -47,6 +47,10 @@ REMOTE="$1"
 
 SSH_OPTS="-p $PORT"
 [ -n "$IDENTITY" ] && SSH_OPTS="$SSH_OPTS -i $IDENTITY"
+# Skip the ssh-agent by default: some desktop agents stall for ~60s before
+# refusing to list identities, and this helper authenticates with an on-disk
+# key. Set TOOLBOX_SSH_AGENT=1 if you rely on agent-held keys.
+[ "${TOOLBOX_SSH_AGENT:-0}" = "1" ] || SSH_OPTS="$SSH_OPTS -o IdentityAgent=none"
 # shellcheck disable=SC2086
 ssh_run() { ssh $SSH_OPTS "$HOST" "$@"; }
 
