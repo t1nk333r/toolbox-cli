@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     htop \
     tmux \
     openssh-client \
+    openssh-server \
     poppler-utils \
     mosh \
     rsync \
@@ -86,4 +87,19 @@ RUN git clone https://github.com/LazyVim/starter ~/.config/nvim
 # Config baked into image
 COPY config/ /root/.config/
 
+# SSH server: key-only, used purely as the mosh bootstrap channel
+RUN mkdir -p /run/sshd \
+    && printf '%s\n' \
+        'PermitRootLogin prohibit-password' \
+        'PasswordAuthentication no' \
+        'PubkeyAuthentication yes' \
+        'KbdInteractiveAuthentication no' \
+        > /etc/ssh/sshd_config.d/toolbox.conf
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# TCP 22 = SSH bootstrap; UDP 60000-60010 = mosh sessions
+EXPOSE 22/tcp 60000-60010/udp
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sleep", "infinity"]
