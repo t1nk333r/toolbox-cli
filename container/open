@@ -50,7 +50,7 @@ On your local machine:
   1. start the listener:   scripts/toolbox-opend
   2. reconnect with the reverse tunnel:
                            scripts/toolbox-ssh
-     (or: ssh -R $PORT:127.0.0.1:$PORT -p 2222 root@<host>)
+     (or: ssh -R $PORT:127.0.0.1:$PORT -p 2222 toolbox@<host>)
 
 Note: this needs SSH port forwarding, so run it over an SSH session.
 EOF

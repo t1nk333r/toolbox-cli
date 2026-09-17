@@ -17,7 +17,7 @@ and update your row when done.
 | 005 | Gate CI on a smoke test that proves every advertised tool runs | P1 | S | 004 (soft) | DONE (merged, `f86aad6`) |
 | 006 | Document the TrueNAS SCALE deployment path (additive only) | P2 | S | — | DONE (merged, `07ebfe7`) |
 | 007 | Pin tool versions and publish immutable SHA image tags | P2 | M | 005 (hard) | TODO — not executed, changes build behavior |
-| 008 | Run as a non-root user and harden for always-on use | P2 | M | 005 (hard), 006 (soft) | BLOCKED — breaking; needs a maintainer decision, see below |
+| 008 | Run as a non-root user and harden for always-on use | P2 | M | 005 (hard), 006 (soft) | DONE — executed with two documented deviations, see below |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -33,18 +33,32 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJE
 - 004, 005, 006 touch disjoint files (`Dockerfile` / workflow + `test/` /
   `README.md` + `compose.yaml` + `.env.example`) and can run in parallel.
 
-## Open decision blocking 008
+## Decision that blocked 008 — resolved
 
-Plan 008 makes the container run as a non-root user, which means **`apt-get`
-stops working inside the container**. For a sysadmin toolbox that may be a real
-loss. The maintainer must choose:
+The maintainer chose **non-root with a root escape hatch**: the login user is
+unprivileged, and `docker exec -u 0` covers `apt-get` and other privileged work.
+No `sudo` in the image.
 
-- **(a)** Accept it — rebuild the image when a new tool is needed. Consistent
-  with the reproducible-build direction of 007.
-- **(b)** Keep root and solve file ownership another way (e.g. `docker exec -u`
-  for specific tasks), and reject 008.
+### Two deviations from the plan as written
 
-Until this is answered, 008 stays BLOCKED.
+Both were forced by facts the plan predates. It was written at `d886adb`, before
+the image gained an SSH server.
+
+1. **No `USER` instruction.** The plan's final step adds `USER ${USERNAME}`, but
+   sshd needs root — host keys, privilege separation, binding port 22 — so that
+   would have broken SSH login and the `open` reverse tunnel outright. Instead
+   PID 1 stays root and the *login user* is unprivileged: `PermitRootLogin no`
+   plus `AllowUsers toolbox`, so you connect as `toolbox@host`. The ownership
+   goal is met; only the mechanism differs.
+2. **`PUID`/`PGID` default to `568`, not `1000`.** The live datasets are mode
+   `770` owned by `root:568`, which grants nothing to "others". A uid/gid of
+   1000 would have left the container unable to even list `/mnt/deimos/media` —
+   a silent, total loss of access that the smoke test cannot catch, since it
+   only checks `command -v`. Verified afterwards: the `568` user reads and
+   writes a `770 root:568` directory, and new files land as `568:568`.
+
+The plan's `USER`-placement assertion is therefore not applicable, and its
+`1000` defaults should be read as an example, not a recommendation.
 
 ## Decisions taken during planning
 
@@ -58,7 +72,11 @@ Recorded so they are not re-argued:
   NAS-vs-desktop question is settled.
 - **Install `glow` only, not `lazygit`** (plan 003).
 - **GUI openers became terminal-appropriate** (plan 003): images → `exiftool`,
-  audio/video → `mediainfo`.
+  audio/video → `mediainfo`. **Superseded.** The image now ships an `open` that
+  streams a file back to the machine you connected from, so images and PDFs
+  default to your real desktop viewer; `exiftool`/`mediainfo` remain as the
+  secondary choices under `O`. Audio/video still default to `mediainfo`, since
+  pushing whole videos through the tunnel is the wrong default.
 - **Version pinning (007) partially reverses 002.** 002 removed a token leak by
   replacing an authenticated API call with redirect-based "resolve latest". The
   token removal stands permanently; the dynamic resolution becomes a manual bump
@@ -69,22 +87,82 @@ Recorded so they are not re-argued:
 - **Container runs as root**: originally rejected as by-design for a personal
   laptop toolbox. **That assessment was wrong** — the repo targets TrueNAS SCALE,
   where dataset file ownership genuinely matters. Reopened as plan 008.
-- **Image slimming** (`--no-install-recommends`, slim/media split): rated MED in
-  the original audit on the assumption of laptop pulls. Downgraded — on a NAS
-  with a large pool, image size barely matters, and dropping recommends risks
-  silently losing ffmpeg codecs. Not worth the regression risk; revisit only
-  after 005 exists to catch it.
+- **Image slimming** (`--no-install-recommends`): rejected here as "not worth the
+  regression risk". **That rejection has been overturned by measurement.**
+  Recommends were pulling ~340MB of headless-useless dependencies — Mesa/LLVM GPU
+  drivers, pocketsphinx/flite speech synthesis, GTK and icon themes — via ffmpeg
+  and imagemagick. Applied with 005's smoke test in place, as this entry asked
+  for: 1.64GB → 1.11GB, all 30 tools still present, and ffmpeg encode plus an
+  imagemagick convert verified working. `ca-certificates` had to be named
+  explicitly, having previously arrived as a recommend.
+  The slim/media split remains unbuilt and unjudged.
 - **Multi-arch / arm64**: not worth it unless the target changes. All four binary
   downloads hardcode `x86_64`, so adding a platform without arch-conditional URLs
   would produce a broken image that still "builds".
 - **`unrar` availability**: the `ubuntu:24.04` image enables multiverse. Fine.
 - **Duplicate `id = "git"` across two `[[plugin.prepend_fetchers]]` entries**:
   documented, correct setup — one rule for files, one for directories.
-- **`name` vs `url` in previewer/fetcher rules**: the vendored plugin READMEs say
-  `name`, but they are stale. Current yazi uses `url`, which the repo has.
-  Changing it would silently break the git fetcher and markdown previewer.
+- **`name` vs `url` in previewer/fetcher rules**: correct for the *plugin* rules,
+  which is what this entry examined. **But the vendored flavors were not checked
+  and did use `name`**, which aborted theme loading outright once the flavor
+  actually started loading; both are now `url`. See the yazi notes below.
 - **Prompt-injection content**: none found. All vendored files were treated as
   data during the audit.
+
+## Work done outside the plan set
+
+Not from a plan; recorded here because it invalidates claims above.
+
+### Plan 003's "make the baked-in yazi config valid" was not actually valid
+
+003 is marked DONE, and was correct against the yazi of its day. Against the
+shipped yazi 26.9.1 the config was substantially broken, which only surfaced by
+running yazi interactively and instrumenting it — a config that parses as TOML
+and starts without errors can still do nothing:
+
+- **Every opener silently received zero files.** yazi 25.12 replaced the `"$@"`
+  convention with `%s`/`%s1` placeholders. Instrumenting showed `ARGC=0`, so
+  `edit`, `info`, `exif` and `extract` were all running against nothing.
+- **Flavors never loaded.** `theme.toml` used the deprecated `[flavor] use`
+  instead of `dark`/`light`. Fixing that exposed two further breakages in the
+  vendored flavors, each fatal to theme loading: `name =` fallback rules and a
+  removed `tab_width` key.
+- **Dead keys**: `title_format`, `sixel_fraction`. Both absent from the 26.9.1
+  binary. The `ueberzug_*` keys were checked and are still valid — kept.
+- **`reveal` opener dropped**: it means "show in a file manager", which does not
+  exist in a headless container, and its default shells out to `xdg-open`.
+- **Opener error pause needed POSIX `read`**: yazi runs openers with `sh` (dash),
+  where `read -rsn1` fails outright.
+
+Lesson for future audits: TOML validity and a clean startup are not evidence
+that a yazi config does anything. Drive it and assert on observed behaviour.
+
+### chafa deliberately not installed
+
+yazi falls back to `chafa` for image preview in terminals without a graphics
+protocol, but Ubuntu 24.04 ships chafa 1.14, which rejects the `--probe` flag
+yazi 26.9.1 passes (`exit 2`). An old chafa fails just as loudly as a missing
+one, so it is pure weight. Revisit if the base image ships chafa ≥ 1.16.
+
+### Remote access and `open`
+
+SSH (key-only), plus an `open` in the image that streams a file back through an
+SSH reverse tunnel to a listener on the client, so `open report.pdf` inside the
+container lands in the operator's desktop viewer. Pure shell via bash
+`/dev/tcp`; no GUI stack. Client helpers live in `scripts/`. mosh was added for
+resilient sessions and then removed — it cannot forward ports, so it could not
+carry `open`, and it drops graphics escape sequences so it could not do image
+preview either.
+
+X11/waypipe forwarding was considered for running real GUI viewers in the
+container and rejected: ~154MB of X client libraries for something `open`
+already achieves at zero image cost.
+
+### Known gap
+
+`scripts/toolbox-opend.ps1` and `scripts/toolbox-view.ps1` have **never been
+executed** — no PowerShell available on the machine they were written on. Every
+other piece here was verified at runtime.
 
 ## Prior-session branches (unmerged, superseded)
 

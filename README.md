@@ -16,7 +16,7 @@ like TrueNAS SCALE, where installing native packages is not an option.
 
 ```bash
 docker compose up -d
-docker exec -it toolbox bash
+docker exec -it -u toolbox toolbox bash
 ```
 
 By default your home directory is mounted at `/work` inside the container,
@@ -47,7 +47,7 @@ echo "TOOLBOX_SSH_PUBKEY=$(cat ~/.ssh/id_ed25519.pub)" >> .env
 Host `2222` maps to container `22`, since `22` is usually taken by the host:
 
 ```bash
-ssh -p 2222 root@<host>       # plain shell
+ssh -p 2222 toolbox@<host>       # plain shell
 scripts/toolbox-ssh           # shell + the reverse tunnel `open` needs
 ```
 
@@ -105,7 +105,7 @@ On Windows, run the PowerShell listener and forward the port yourself:
 
 ```powershell
 .\scripts\toolbox-opend.ps1
-ssh -R 17654:127.0.0.1:17654 -p 2222 root@<host>
+ssh -R 17654:127.0.0.1:17654 -p 2222 toolbox@<host>
 ```
 
 ### Pulling a single file from the client side
@@ -116,14 +116,14 @@ otherwise the file is downloaded and opened.
 
 ```bash
 # Linux / macOS
-export TOOLBOX_HOST=root@<host>                 # or pass -H
+export TOOLBOX_HOST=toolbox@<host>                 # or pass -H
 scripts/toolbox-view /mnt/pool/docs/report.pdf  # download + xdg-open/open
 scripts/toolbox-view -d /mnt/pool/pics/x.png    # force download instead of inline
 ```
 
 ```powershell
 # Windows
-$env:TOOLBOX_HOST = "root@<host>"
+$env:TOOLBOX_HOST = "toolbox@<host>"
 .\scripts\toolbox-view.ps1 /mnt/pool/docs/report.pdf
 ```
 
@@ -137,8 +137,8 @@ With a graphics-capable terminal (kitty, ghostty, foot, WezTerm, iTerm2),
 images and the first page of PDFs render inline over SSH:
 
 ```bash
-ssh -p 2222 -t root@<host> yazi /mnt                       # browse with previews
-ssh -p 2222 root@<host> 'cat /path/img.png' | kitten icat   # one image, kitty
+ssh -p 2222 -t toolbox@<host> yazi /mnt                       # browse with previews
+ssh -p 2222 toolbox@<host> 'cat /path/img.png' | kitten icat   # one image, kitty
 ```
 
 Terminals without a graphics protocol get no inline preview; use one of the
@@ -149,7 +149,7 @@ options above instead.
 For heavy browsing, mount it and use your normal tools (needs sshfs/macFUSE):
 
 ```bash
-sshfs -p 2222 root@<host>:/mnt ~/toolbox
+sshfs -p 2222 toolbox@<host>:/mnt ~/toolbox
 ```
 
 ## Configuration
@@ -180,10 +180,42 @@ or uncomment and edit the per-dataset examples in `compose.yaml` for finer
 control over what the container can reach. Pool and dataset names are specific
 to your installation, so nothing is mounted by default.
 
-**Files are created as root.** The container runs as root, so anything it writes
-into a mounted dataset is owned by `root`. If that conflicts with how other apps
-access those datasets, you will need to `chown` afterwards. Running as a
-non-root user with a matching UID/GID is tracked as a separate change.
+**Match `PGID` to your datasets.** Files the toolbox writes carry the login
+user's ownership — see [Running as non-root](#running-as-non-root). The default
+`568:568` is TrueNAS SCALE's `apps` id, which is what its datasets normally use.
+
+## Running as non-root
+
+You log in as an unprivileged user (`toolbox`, uid/gid `568:568` by default), so
+anything written into a mounted dataset carries that ownership instead of
+root's. Root SSH login is disabled.
+
+**Find the right id for your host** — the dataset owner is authoritative:
+
+```bash
+ls -ln /mnt/<pool>/<dataset>
+```
+
+TrueNAS SCALE commonly uses `568` (`apps`). This matters more than it looks:
+those datasets are typically mode `770` owned by `root:568`, granting **no**
+access to "others", so a login user outside group 568 cannot read them at all.
+Set `PUID`/`PGID` in `.env` if your host differs.
+
+**The identity is baked at build time.** Changing `PUID`/`PGID` needs
+`docker compose build`, not a restart — a restart silently keeps the old id.
+
+**Root is still reachable**, it is just not the login user. `apt-get` and other
+privileged work go through:
+
+```bash
+docker exec -u 0 toolbox bash      # root shell inside the container
+```
+
+Nothing installed that way survives a rebuild; add lasting tools to the
+`Dockerfile`. The image ships no `sudo`, deliberately.
+
+The container's PID 1 remains root because sshd needs it — for host keys,
+privilege separation, and binding port 22. Only your *session* is unprivileged.
 
 ## Using the published image
 

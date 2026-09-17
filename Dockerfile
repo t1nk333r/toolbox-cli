@@ -4,6 +4,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
+# Identity of the login user. 568 is TrueNAS SCALE's `apps` id: the datasets
+# this toolbox works on are mode 770 owned by root:568, so a login user outside
+# group 568 cannot read them at all. Override for other hosts.
+ARG PUID=568
+ARG PGID=568
+ARG USERNAME=toolbox
+ENV TOOLBOX_USER=${USERNAME}
+
 # Base tools + ffmpeg suite
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -81,19 +89,33 @@ RUN echo 'alias cat="batcat --paging=never"' >> /etc/bash.bashrc \
     && echo 'alias la="eza -a --icons"'         >> /etc/bash.bashrc \
     && echo 'alias fd="fdfind"'                 >> /etc/bash.bashrc
 
+# Login user. Ubuntu 24.04 ships a stock `ubuntu` account at uid 1000, which
+# collides whenever PUID is 1000; drop it first. `|| true` because it does not
+# exist on every base image.
+RUN userdel -r ubuntu 2>/dev/null || true \
+    && groupadd -g ${PGID} ${USERNAME} \
+    && useradd -u ${PUID} -g ${PGID} -m -s /bin/bash ${USERNAME}
+
 # LazyVim
-RUN git clone https://github.com/LazyVim/starter ~/.config/nvim
+RUN git clone https://github.com/LazyVim/starter /home/${USERNAME}/.config/nvim
 
 # Config baked into image
-COPY config/ /root/.config/
+COPY config/ /home/${USERNAME}/.config/
 
-# SSH server: key-only. Also carries the reverse tunnel used by `open`.
+# Catches both the COPY and the git clone above, which run as root.
+RUN chown -R ${PUID}:${PGID} /home/${USERNAME}
+
+# SSH server: key-only, and you log in as the unprivileged user so anything
+# written into a mounted dataset carries its ownership, not root's. sshd itself
+# stays root (host keys, privilege separation, port 22), so there is no USER
+# instruction here; use `docker exec -u 0` for apt and other root work.
 RUN mkdir -p /run/sshd \
     && printf '%s\n' \
-        'PermitRootLogin prohibit-password' \
+        'PermitRootLogin no' \
         'PasswordAuthentication no' \
         'PubkeyAuthentication yes' \
         'KbdInteractiveAuthentication no' \
+        "AllowUsers ${USERNAME}" \
         'HostKey /etc/ssh/host_keys/ssh_host_ed25519_key' \
         'HostKey /etc/ssh/host_keys/ssh_host_rsa_key' \
         > /etc/ssh/sshd_config.d/toolbox.conf

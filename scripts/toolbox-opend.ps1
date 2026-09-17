@@ -7,7 +7,7 @@
     that localhost:17654 inside the container points back here:
 
         .\scripts\toolbox-opend.ps1
-        ssh -R 17654:127.0.0.1:17654 -p 2222 root@<host>
+        ssh -R 17654:127.0.0.1:17654 -p 2222 toolbox@<host>
 
     Then, inside the container:
 
@@ -49,7 +49,7 @@ try {
 }
 
 Write-Host "toolbox-opend: listening on 127.0.0.1:$Port (Ctrl-C to stop)"
-Write-Host "toolbox-opend: connect with  ssh -R ${Port}:127.0.0.1:$Port -p 2222 root@<host>"
+Write-Host "toolbox-opend: connect with  ssh -R ${Port}:127.0.0.1:$Port -p 2222 toolbox@<host>"
 
 try {
     while ($true) {

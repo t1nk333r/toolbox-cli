@@ -5,7 +5,7 @@ Run this on YOUR machine, then connect with a reverse tunnel so that
 localhost:17654 inside the container points back here:
 
     scripts/toolbox-opend &
-    scripts/toolbox-ssh            # or: ssh -R 17654:127.0.0.1:17654 -p 2222 root@<host>
+    scripts/toolbox-ssh            # or: ssh -R 17654:127.0.0.1:17654 -p 2222 toolbox@<host>
 
 Then, inside the container:
 
@@ -107,7 +107,7 @@ def main() -> int:
         return 1
     srv.listen(8)
     print(f"toolbox-opend: listening on 127.0.0.1:{args.port} (Ctrl-C to stop)")
-    print(f"toolbox-opend: connect with  ssh -R {args.port}:127.0.0.1:{args.port} -p 2222 root@<host>")
+    print(f"toolbox-opend: connect with  ssh -R {args.port}:127.0.0.1:{args.port} -p 2222 toolbox@<host>")
 
     try:
         while True:

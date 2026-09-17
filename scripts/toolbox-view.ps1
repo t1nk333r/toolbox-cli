@@ -14,7 +14,7 @@
     Absolute path of the file inside the container, e.g. /mnt/tank/docs/report.pdf
 
 .PARAMETER SshHost
-    SSH destination. Default: $env:TOOLBOX_HOST, else root@10.10.10.9
+    SSH destination. Default: $env:TOOLBOX_HOST, else toolbox@10.10.10.9
 
 .PARAMETER Port
     SSH port. Default: $env:TOOLBOX_PORT, else 2222
@@ -29,12 +29,12 @@
     .\toolbox-view.ps1 /mnt/tank/pics/photo.png
 
 .EXAMPLE
-    .\toolbox-view.ps1 -SshHost root@nas.local -Port 2222 /mnt/tank/docs/report.pdf
+    .\toolbox-view.ps1 -SshHost toolbox@nas.local -Port 2222 /mnt/tank/docs/report.pdf
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [string]$RemotePath,
-    [string]$SshHost = $(if ($env:TOOLBOX_HOST) { $env:TOOLBOX_HOST } else { 'root@10.10.10.9' }),
+    [string]$SshHost = $(if ($env:TOOLBOX_HOST) { $env:TOOLBOX_HOST } else { 'toolbox@10.10.10.9' }),
     [int]$Port = $(if ($env:TOOLBOX_PORT) { [int]$env:TOOLBOX_PORT } else { 2222 }),
     [string]$Identity,
     [switch]$Download

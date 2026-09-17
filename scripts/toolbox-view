@@ -12,17 +12,17 @@
 #   toolbox-view [-H user@host] [-p port] [-i identity] [-d] <remote-path>
 #
 # Options:
-#   -H  ssh destination      (default: $TOOLBOX_HOST, else root@10.10.10.9)
+#   -H  ssh destination      (default: $TOOLBOX_HOST, else toolbox@10.10.10.9)
 #   -p  ssh port             (default: $TOOLBOX_PORT, else 2222)
 #   -i  ssh identity file    (default: ssh's own resolution)
 #   -d  force download+open  (skip inline rendering even for images)
 #
 # Examples:
 #   toolbox-view /mnt/tank/pics/photo.png
-#   toolbox-view -H root@nas.local -p 2222 /mnt/tank/docs/report.pdf
+#   toolbox-view -H toolbox@nas.local -p 2222 /mnt/tank/docs/report.pdf
 set -eu
 
-HOST="${TOOLBOX_HOST:-root@10.10.10.9}"
+HOST="${TOOLBOX_HOST:-toolbox@10.10.10.9}"
 PORT="${TOOLBOX_PORT:-2222}"
 IDENTITY=""
 FORCE_DL=0

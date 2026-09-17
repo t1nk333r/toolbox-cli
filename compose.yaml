@@ -2,8 +2,16 @@ services:
   toolbox:
     build:
       context: .
+      args:
+        # Login user identity. 568 is TrueNAS SCALE's `apps` id; datasets there
+        # are mode 770 owned by root:568, so a user outside group 568 cannot
+        # read them. Baked at build time — changing it needs a rebuild.
+        PUID: ${PUID:-568}
+        PGID: ${PGID:-568}
     image: ghcr.io/d7eeem/toolbox-cli:latest
     container_name: toolbox
+    restart: unless-stopped
+    init: true
     stdin_open: true
     tty: true
     environment:
