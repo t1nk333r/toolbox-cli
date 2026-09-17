@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# open — open a file from inside the toolbox container on the machine you are
+# connected FROM. Installed in the image as `open` (and `xdg-open`).
+#
+# How it works: your client runs a small listener (scripts/toolbox-opend) and
+# connects with a reverse tunnel (scripts/toolbox-ssh), so localhost:17654
+# inside the container points back at your own machine. This script streams the
+# file into that tunnel; the listener saves it and hands it to your desktop's
+# default application.
+#
+# The container never learns anything about your machine and needs no
+# credentials for it — the tunnel only exists for the life of your SSH session.
+#
+# Usage: open <file> [more files...]
+set -euo pipefail
+
+PORT="${TOOLBOX_OPEN_PORT:-17654}"
+HOST="${TOOLBOX_OPEN_HOST:-127.0.0.1}"
+
+if [ $# -lt 1 ]; then
+    echo "usage: open <file> [file...]" >&2
+    exit 2
+fi
+
+status=0
+for f in "$@"; do
+    if [ ! -f "$f" ]; then
+        echo "open: $f: not a regular file" >&2
+        status=1
+        continue
+    fi
+
+    name=$(basename -- "$f")
+
+    # Protocol: first line is the file name, everything after it is the payload.
+    # The send runs in a subshell so both the silenced stderr and the socket fd
+    # stay scoped to it: `exec ... 2>/dev/null` in the parent would mute the
+    # rest of this script, and a trailing `2>/dev/null` is applied too late to
+    # catch the redirection error itself.
+    if ! (
+        exec 2>/dev/null
+        exec 3<>"/dev/tcp/$HOST/$PORT"
+        printf '%s\n' "$name" >&3
+        cat -- "$f" >&3
+    ); then
+        cat >&2 <<EOF
+open: no listener on $HOST:$PORT — cannot reach your machine.
+
+On your local machine:
+  1. start the listener:   scripts/toolbox-opend
+  2. reconnect with the reverse tunnel:
+                           scripts/toolbox-ssh
+     (or: ssh -R $PORT:127.0.0.1:$PORT -p 2222 root@<host>)
+
+Note: mosh cannot forward ports. Use SSH for 'open', or keep a second
+SSH session open alongside mosh.
+EOF
+        exit 1
+    fi
+
+    echo "open: sent $name to your local machine" >&2
+done
+
+exit "$status"

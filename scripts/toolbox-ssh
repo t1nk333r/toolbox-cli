@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+# toolbox-ssh — connect to the toolbox container with the reverse tunnel that
+# makes `open <file>` inside the container work on your machine.
+#
+# It is plain ssh plus `-R <port>:127.0.0.1:<port>`, so localhost:17654 in the
+# container points back at the toolbox-opend listener running here.
+#
+# Usage:
+#   toolbox-ssh                      # interactive shell in the container
+#   toolbox-ssh yazi /mnt            # run a command instead
+#   toolbox-ssh -H root@nas -p 2222  # override destination
+#
+# Env: TOOLBOX_HOST, TOOLBOX_PORT, TOOLBOX_OPEN_PORT, TOOLBOX_SSH_AGENT
+set -eu
+
+HOST="${TOOLBOX_HOST:-root@10.10.10.9}"
+PORT="${TOOLBOX_PORT:-2222}"
+OPEN_PORT="${TOOLBOX_OPEN_PORT:-17654}"
+IDENTITY=""
+
+while getopts "H:p:i:h" opt; do
+  case "$opt" in
+    H) HOST="$OPTARG" ;;
+    p) PORT="$OPTARG" ;;
+    i) IDENTITY="$OPTARG" ;;
+    h) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "toolbox-ssh: unknown option" >&2; exit 2 ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+if ! (exec 3<>"/dev/tcp/127.0.0.1/$OPEN_PORT") 2>/dev/null; then
+  echo "toolbox-ssh: warning: no toolbox-opend listener on 127.0.0.1:$OPEN_PORT." >&2
+  echo "             'open' in the container will fail until you start it:" >&2
+  echo "               scripts/toolbox-opend &" >&2
+fi
+
+set -- -R "$OPEN_PORT:127.0.0.1:$OPEN_PORT" -p "$PORT" ${IDENTITY:+-i "$IDENTITY"} \
+       ${TOOLBOX_SSH_AGENT:+} -o SendEnv=TOOLBOX_OPEN_PORT "$HOST" "$@"
+
+# Skip a stalling desktop ssh-agent unless explicitly asked to use it.
+if [ "${TOOLBOX_SSH_AGENT:-0}" != "1" ]; then
+  set -- -o IdentityAgent=none "$@"
+fi
+
+exec ssh -t "$@"

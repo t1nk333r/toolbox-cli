@@ -119,6 +119,46 @@ ssh -p 2222 -t root@<host> yazi /mnt          # browse; previews appear inline
 ssh -p 2222 root@<host> 'cat /path/img.png' | kitten icat   # one image, kitty
 ```
 
+### `open <file>` from inside the container (recommended)
+
+The most natural way: work in the container and just `open` things, with no
+paths to retype on the client side.
+
+```bash
+# Once, on your local machine:
+scripts/toolbox-opend &      # listener that opens whatever arrives
+scripts/toolbox-ssh          # ssh + the reverse tunnel, in one command
+
+# Then, inside the container:
+cd /mnt/deimos/media/docs
+open report.pdf              # appears in YOUR pdf viewer
+open photo.png               # appears in YOUR image viewer
+```
+
+`open` is installed in the image (also as `xdg-open`, so tools that shell out
+to it work). It is a pure shell script using bash's `/dev/tcp` — no GUI
+libraries, no extra packages.
+
+How it works: `toolbox-ssh` adds `-R 17654:127.0.0.1:17654`, so port 17654
+inside the container points back at the `toolbox-opend` listener on your
+machine. `open` streams the file into that tunnel; the listener saves it to a
+temp file and hands it to your desktop's default application.
+
+This deliberately gives the container **no** access to your machine: it holds
+no credentials for you and cannot reach anything except the one loopback port,
+only for as long as your SSH session lives.
+
+On Windows, use the PowerShell listener with the built-in OpenSSH client:
+
+```powershell
+.\scripts\toolbox-opend.ps1
+ssh -R 17654:127.0.0.1:17654 -p 2222 root@<host>
+```
+
+Change the port with `TOOLBOX_OPEN_PORT` on both ends. Since this relies on
+port forwarding, it needs **SSH** — mosh cannot forward ports, so either use
+SSH for `open` or keep a second SSH session open alongside mosh.
+
 ### Open in your desktop's default app — Linux, macOS, Windows
 
 `scripts/toolbox-view` (Linux/macOS) and `scripts/toolbox-view.ps1` (Windows)

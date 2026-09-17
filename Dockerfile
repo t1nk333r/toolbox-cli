@@ -98,6 +98,12 @@ RUN mkdir -p /run/sshd \
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# `open <file>` sends a file back to the machine you connected from, via the
+# reverse tunnel set up by scripts/toolbox-ssh. Pure shell — no GUI stack.
+COPY container/open /usr/local/bin/open
+RUN chmod +x /usr/local/bin/open \
+    && ln -sf /usr/local/bin/open /usr/local/bin/xdg-open
+
 # TCP 22 = SSH bootstrap; UDP 60000-60010 = mosh sessions
 EXPOSE 22/tcp 60000-60010/udp
 

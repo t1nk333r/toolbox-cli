@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""toolbox-opend — local listener that opens files sent by `open` in the container.
+
+Run this on YOUR machine, then connect with a reverse tunnel so that
+localhost:17654 inside the container points back here:
+
+    scripts/toolbox-opend &
+    scripts/toolbox-ssh            # or: ssh -R 17654:127.0.0.1:17654 -p 2222 root@<host>
+
+Then, inside the container:
+
+    open report.pdf
+
+Only binds 127.0.0.1, so nothing on your network can reach it — the only way
+in is the SSH reverse tunnel you created.
+"""
+
+import argparse
+import os
+import platform
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+
+DEFAULT_PORT = 17654
+MAX_BYTES = 512 * 1024 * 1024  # refuse absurd payloads
+
+
+def desktop_open(path: str) -> None:
+    system = platform.system()
+    if system == "Darwin":
+        cmd = ["open", path]
+    elif system == "Windows":
+        os.startfile(path)  # type: ignore[attr-defined]
+        return
+    else:
+        cmd = ["xdg-open", path]
+    subprocess.Popen(
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True
+    )
+
+
+def safe_name(raw: bytes) -> str:
+    name = raw.decode("utf-8", "replace").strip()
+    name = os.path.basename(name)          # strip any path components
+    name = name.replace("\x00", "")
+    return name or "toolbox-file"
+
+
+def handle(conn: socket.socket, addr, keep: bool) -> None:
+    with conn:
+        conn.settimeout(300)
+        buf = b""
+        # Read up to the first newline: that is the file name.
+        while b"\n" not in buf:
+            chunk = conn.recv(4096)
+            if not chunk:
+                return
+            buf += chunk
+            if len(buf) > 8192:
+                print("toolbox-opend: malformed header, dropping", file=sys.stderr)
+                return
+        header, _, rest = buf.partition(b"\n")
+        name = safe_name(header)
+
+        tmpdir = tempfile.mkdtemp(prefix="toolbox-open-")
+        path = os.path.join(tmpdir, name)
+        total = len(rest)
+        with open(path, "wb") as fh:
+            fh.write(rest)
+            while True:
+                chunk = conn.recv(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_BYTES:
+                    print(f"toolbox-opend: {name} exceeds size limit, aborting", file=sys.stderr)
+                    return
+                fh.write(chunk)
+
+    print(f"toolbox-opend: received {name} ({total} bytes) -> {path}")
+    try:
+        desktop_open(path)
+    except Exception as exc:  # noqa: BLE001 - report and keep serving
+        print(f"toolbox-opend: could not open {path}: {exc}", file=sys.stderr)
+    if not keep:
+        # Leave the file in place; the viewer may still be reading it. The
+        # temp dir is cleaned by the OS. Print the path so it can be reused.
+        pass
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Open files sent from the toolbox container.")
+    ap.add_argument("-p", "--port", type=int, default=int(os.environ.get("TOOLBOX_OPEN_PORT", DEFAULT_PORT)))
+    ap.add_argument("-1", "--once", action="store_true", help="serve a single file then exit")
+    ap.add_argument("--keep", action="store_true", help="(reserved) keep received files")
+    args = ap.parse_args()
+
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        srv.bind(("127.0.0.1", args.port))
+    except OSError as exc:
+        print(f"toolbox-opend: cannot bind 127.0.0.1:{args.port}: {exc}", file=sys.stderr)
+        return 1
+    srv.listen(8)
+    print(f"toolbox-opend: listening on 127.0.0.1:{args.port} (Ctrl-C to stop)")
+    print(f"toolbox-opend: connect with  ssh -R {args.port}:127.0.0.1:{args.port} -p 2222 root@<host>")
+
+    try:
+        while True:
+            conn, addr = srv.accept()
+            if args.once:
+                handle(conn, addr, args.keep)
+                return 0
+            threading.Thread(target=handle, args=(conn, addr, args.keep), daemon=True).start()
+    except KeyboardInterrupt:
+        print("\ntoolbox-opend: stopped")
+        return 0
+    finally:
+        srv.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
