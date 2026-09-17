@@ -52,8 +52,7 @@ On your local machine:
                            scripts/toolbox-ssh
      (or: ssh -R $PORT:127.0.0.1:$PORT -p 2222 root@<host>)
 
-Note: mosh cannot forward ports. Use SSH for 'open', or keep a second
-SSH session open alongside mosh.
+Note: this needs SSH port forwarding, so run it over an SSH session.
 EOF
         exit 1
     fi

@@ -231,8 +231,8 @@ keymap = [
   ], run = "cd ~/.config", desc = "Goto ~/.config" },
   { on = [
     "g",
-    "d",
-  ], run = "cd ~/Downloads", desc = "Goto ~/Downloads" },
+    "m",
+  ], run = "cd /mnt", desc = "Goto /mnt (mounted datasets)" },
   { on = [
     "g",
     "<Space>",

@@ -1,4 +1,5 @@
 FROM ubuntu:24.04
+# C.UTF-8 keeps unicode filenames correct in yazi and the rest of the TUI tools.
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
@@ -33,7 +34,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-client \
     openssh-server \
     poppler-utils \
-    mosh \
     rsync \
     && rm -rf /var/lib/apt/lists/*
 
@@ -87,7 +87,7 @@ RUN git clone https://github.com/LazyVim/starter ~/.config/nvim
 # Config baked into image
 COPY config/ /root/.config/
 
-# SSH server: key-only, used purely as the mosh bootstrap channel
+# SSH server: key-only. Also carries the reverse tunnel used by `open`.
 RUN mkdir -p /run/sshd \
     && printf '%s\n' \
         'PermitRootLogin prohibit-password' \
@@ -104,8 +104,8 @@ COPY container/open /usr/local/bin/open
 RUN chmod +x /usr/local/bin/open \
     && ln -sf /usr/local/bin/open /usr/local/bin/xdg-open
 
-# TCP 22 = SSH bootstrap; UDP 60000-60010 = mosh sessions
-EXPOSE 22/tcp 60000-60010/udp
+# TCP 22 = SSH (shell, and the reverse tunnel that `open` streams through)
+EXPOSE 22/tcp
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sleep", "infinity"]

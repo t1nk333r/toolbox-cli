@@ -10,7 +10,6 @@ show_hidden = false
 show_symlink = true
 scrolloff = 5
 mouse_events = ["click", "scroll"]
-title_format = "Yazi: {cwd}"
 
 [preview]
 wrap = "no"
@@ -21,7 +20,6 @@ cache_dir = ""
 image_delay = 5
 image_filter = "catmull-rom"
 image_quality = 85
-sixel_fraction = 15
 ueberzug_scale = 1
 ueberzug_offset = [0, 0, 0, 0]
 
@@ -33,63 +31,76 @@ image_alloc = 536870912  # 512MB
 image_bound = [0, 0]
 suppress_preload = false
 
+# Yazi 25.12+ dropped the `"$@"` convention: file paths arrive through `%s`
+# (all selected) / `%s1` (first). With `"$@"` the shell saw no arguments at
+# all, so every opener here silently ran against nothing.
 [opener]
+# Send the file to the machine you are connected FROM (see container/open).
+# block = true so the "no listener" hint is visible; the pause uses POSIX
+# `read` because yazi runs openers with sh (dash), not bash.
+open = [
+  { run = '/usr/local/bin/open %s || { printf "\nPress Enter to continue..."; read _; }', desc = "Open on my machine", block = true, for = "unix" },
+]
 edit = [
-  { run = '${EDITOR:=nvim} "$@"', desc = "$EDITOR", block = true, for = "unix" },
+  { run = '${EDITOR:=nvim} %s', desc = "$EDITOR", block = true, for = "unix" },
 ]
 info = [
-  { run = 'mediainfo "$@" | less -R', desc = "Media info", block = true, for = "unix" },
+  { run = 'mediainfo %s | less -R', desc = "Media info", block = true, for = "unix" },
 ]
 exif = [
-  { run = 'exiftool "$@" | less -R', desc = "EXIF metadata", block = true, for = "unix" },
+  { run = 'exiftool %s | less -R', desc = "EXIF metadata", block = true, for = "unix" },
 ]
 extract = [
-  { run = 'ya pub extract --list "$@"', desc = "Extract here", for = "unix" },
+  { run = 'ya pub extract --list %s', desc = "Extract here", for = "unix" },
 ]
 
+# The first entry of each `use` is what <Enter> runs; the rest show up under
+# `O` (open interactively). `reveal` is deliberately absent: it means "show in
+# a file manager", which does not exist in a headless container.
 [open]
 rules = [
   { url = "*/", use = [
     "edit",
-    "open",
-    "reveal",
   ] },
   { mime = "text/*", use = [
     "edit",
-    "reveal",
+    "open",
+  ] },
+  { mime = "application/pdf", use = [
+    "open",
+    "edit",
   ] },
   { mime = "image/*", use = [
+    "open",
     "exif",
     "edit",
-    "reveal",
   ] },
+  # Media defaults to metadata, not transfer: whole videos would have to cross
+  # the tunnel, and the listener caps payloads at 512MB.
   { mime = "{audio,video}/*", use = [
     "info",
-    "reveal",
+    "open",
   ] },
   { mime = "application/{,g}zip", use = [
     "extract",
-    "reveal",
   ] },
   { mime = "application/x-{tar,bzip*,7z-compressed,xz,rar}", use = [
     "extract",
-    "reveal",
   ] },
   { mime = "application/{json,x-ndjson}", use = [
     "edit",
-    "reveal",
+    "open",
   ] },
   { mime = "*/javascript", use = [
     "edit",
-    "reveal",
+    "open",
   ] },
   { mime = "inode/x-empty", use = [
     "edit",
-    "reveal",
   ] },
   { url = "*", use = [
     "open",
-    "reveal",
+    "edit",
   ] },
 ]
 

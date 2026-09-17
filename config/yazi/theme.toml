@@ -1,3 +1,6 @@
 [flavor]
-use = "gruvbox-dark"
+# `use` was deprecated: yazi reads `dark`/`light` so it can follow the
+# terminal's background mode. With only `use`, no flavor was applied at all.
+dark = "gruvbox-dark"
+light = "gruvbox-dark"
 

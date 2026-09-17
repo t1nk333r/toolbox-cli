@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepares SSH (the mosh bootstrap) then runs the container command.
+# Prepares SSH then runs the container command.
 set -euo pipefail
 
 # Host keys: generated on first start so the image ships none.
@@ -21,12 +21,12 @@ if [ -s /root/.ssh/authorized_keys ]; then
     chmod 600 /root/.ssh/authorized_keys
     chown -R root:root /root/.ssh
 else
-    echo "WARNING: no SSH public key provided; you cannot mosh/ssh in." >&2
+    echo "WARNING: no SSH public key provided; you cannot ssh in." >&2
     echo "         Mount one:  -v ~/.ssh/id_ed25519.pub:/authorized_keys:ro" >&2
     echo "         or pass:    -e SSH_PUBKEY=\"\$(cat ~/.ssh/id_ed25519.pub)\"" >&2
 fi
 
-# Start sshd in the background; it is only the bootstrap for mosh.
+# Start sshd in the background; the container command is the real workload.
 mkdir -p /run/sshd
 /usr/sbin/sshd
 

@@ -3,7 +3,7 @@
 # LOCAL environment. Runs on Linux and macOS (POSIX sh).
 #
 # It never installs anything on the container: the file is streamed over the
-# same SSH channel used for mosh. Images render inline when your terminal
+# SSH channel. Images render inline when your terminal
 # speaks a graphics protocol (kitty/ghostty/foot/WezTerm/iTerm2); everything
 # else (PDFs, or a non-graphics terminal) is copied to a temp file and handed
 # to your desktop's default application.

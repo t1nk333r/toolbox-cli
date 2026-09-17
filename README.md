@@ -79,11 +79,11 @@ writes into a mounted dataset is owned by `root`. If that conflicts with how
 other apps access those datasets, you will need to `chown` afterwards. Running
 as a non-root user with a matching UID/GID is tracked as a separate change.
 
-## Remote access (SSH + mosh)
+## Remote access (SSH)
 
-The image runs a key-only SSH server purely as a bootstrap channel, so you can
-reach the container directly — including with [mosh](https://mosh.org) for a
-connection that survives roaming and flaky links.
+The image runs a key-only SSH server, so you can reach the container directly.
+The same session also carries the reverse tunnel that `open` uses to put files
+on your desktop.
 
 Authorize a public key (nothing else grants access) either inline via the
 `SSH_PUBKEY` environment variable or by mounting a file at `/authorized_keys`:
@@ -93,23 +93,18 @@ Authorize a public key (nothing else grants access) either inline via the
 echo "TOOLBOX_SSH_PUBKEY=$(cat ~/.ssh/id_ed25519.pub)" >> .env
 ```
 
-Ports: host `2222` -> container `22` (SSH bootstrap; `22` is usually taken by
-the host), plus `60000-60010/udp` for mosh sessions.
+Ports: host `2222` -> container `22` (`22` is usually taken by the host).
 
 ```bash
-ssh  -p 2222 root@<host>                        # plain shell
-mosh --ssh="ssh -p 2222" -p 60000:60010 root@<host>   # resilient shell
+ssh -p 2222 root@<host>       # plain shell
+scripts/toolbox-ssh           # shell + the reverse tunnel that `open` needs
 ```
-
-**mosh vs. images:** mosh does not pass terminal graphics escape sequences, so
-use plain **SSH** for anything that renders images (see below). mosh is for the
-text session.
 
 ## Viewing PDFs and images in your local environment
 
 The container has no GUI — viewers run on **your** machine. Two ways:
 
-### Inline in the terminal (no copy) — SSH only
+### Inline in the terminal (no copy)
 
 If your terminal speaks a graphics protocol (kitty, ghostty, foot, WezTerm,
 iTerm2), images and the first page of PDFs (via `pdftoppm`) render inline:
@@ -155,9 +150,10 @@ On Windows, use the PowerShell listener with the built-in OpenSSH client:
 ssh -R 17654:127.0.0.1:17654 -p 2222 root@<host>
 ```
 
-Change the port with `TOOLBOX_OPEN_PORT` on both ends. Since this relies on
-port forwarding, it needs **SSH** — mosh cannot forward ports, so either use
-SSH for `open` or keep a second SSH session open alongside mosh.
+Change the port with `TOOLBOX_OPEN_PORT` on both ends.
+
+Yazi is wired to this too: pressing `<Enter>` on an image, PDF, or any other
+non-text file runs the same `open`, so it lands in your local viewer.
 
 ### Open in your desktop's default app — Linux, macOS, Windows
 

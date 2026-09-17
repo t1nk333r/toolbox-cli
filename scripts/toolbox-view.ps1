@@ -3,7 +3,7 @@
     Open a file from the remote toolbox container in your LOCAL Windows environment.
 
 .DESCRIPTION
-    Streams a file off the toolbox container over SSH (the same channel mosh uses)
+    Streams a file off the toolbox container over SSH
     and opens it with the Windows default application. Nothing is installed on the
     container. Images can render inline when run inside a graphics-capable terminal
     (WezTerm via `wezterm imgcat`); otherwise the file is downloaded and opened.
