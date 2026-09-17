@@ -18,9 +18,15 @@ services:
     volumes:
       # Default: your home directory, overridable with TOOLBOX_MOUNT in .env.
       - ${TOOLBOX_MOUNT:-${HOME}}:/work
+      # Keep SSH host keys across recreations, so clients are not warned that
+      # the host identity changed after every redeploy.
+      - toolbox-ssh-keys:/etc/ssh/host_keys
       # On TrueNAS SCALE, mount the datasets you want the toolbox to reach
       # instead. Pool and dataset names are specific to your installation —
       # edit these before uncommenting, and see "Deploying on TrueNAS SCALE"
       # in README.md.
       # - /mnt/tank/media:/work/media
       # - /mnt/tank/downloads:/work/downloads
+
+volumes:
+  toolbox-ssh-keys:

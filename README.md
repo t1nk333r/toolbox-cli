@@ -100,6 +100,11 @@ ssh -p 2222 root@<host>       # plain shell
 scripts/toolbox-ssh           # shell + the reverse tunnel that `open` needs
 ```
 
+SSH host keys are generated on first start into `/etc/ssh/host_keys`, which
+`compose.yaml` keeps on a named volume. Without that volume every redeploy
+would present a new host identity and your client would refuse to connect
+until you cleared the old entry from `known_hosts`.
+
 ## Viewing PDFs and images in your local environment
 
 The container has no GUI — viewers run on **your** machine. Two ways:

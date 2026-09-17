@@ -2,8 +2,18 @@
 # Prepares SSH then runs the container command.
 set -euo pipefail
 
-# Host keys: generated on first start so the image ships none.
-ssh-keygen -A >/dev/null 2>&1
+# Host keys live in /etc/ssh/host_keys so they can be kept on a volume: the
+# image ships none, and without persistence every container recreation would
+# hand clients a new identity and trip their strict host-key checking.
+mkdir -p /etc/ssh/host_keys
+chmod 700 /etc/ssh/host_keys
+if [ ! -f /etc/ssh/host_keys/ssh_host_ed25519_key ]; then
+    ssh-keygen -q -t ed25519 -N '' -f /etc/ssh/host_keys/ssh_host_ed25519_key
+fi
+if [ ! -f /etc/ssh/host_keys/ssh_host_rsa_key ]; then
+    ssh-keygen -q -t rsa -b 4096 -N '' -f /etc/ssh/host_keys/ssh_host_rsa_key
+fi
+chmod 600 /etc/ssh/host_keys/*_key
 
 # Install the operator's public key. Prefer an inline env var, otherwise a
 # mounted file (default /authorized_keys). The key is copied into a root-owned

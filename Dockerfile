@@ -94,6 +94,8 @@ RUN mkdir -p /run/sshd \
         'PasswordAuthentication no' \
         'PubkeyAuthentication yes' \
         'KbdInteractiveAuthentication no' \
+        'HostKey /etc/ssh/host_keys/ssh_host_ed25519_key' \
+        'HostKey /etc/ssh/host_keys/ssh_host_rsa_key' \
         > /etc/ssh/sshd_config.d/toolbox.conf
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
