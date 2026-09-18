@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:25.10
 # C.UTF-8 keeps unicode filenames correct in yazi and the rest of the TUI tools.
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
