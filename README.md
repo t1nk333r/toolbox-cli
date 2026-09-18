@@ -69,6 +69,10 @@ scripts live in `scripts/` and are run locally, never installed in the image.
 | `toolbox-view` | Linux, macOS | Pull one remote file and open it |
 | `toolbox-view.ps1` | Windows | Same, PowerShell |
 
+> **TODO**: the two `.ps1` scripts have never been executed — they were written
+> on a machine with no PowerShell. Every other part of this workflow is verified
+> at runtime. Run them against a real host before relying on them.
+
 ### `open <file>` inside the container (recommended)
 
 Work in the container and just `open` things — no paths to retype locally.
