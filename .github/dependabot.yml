@@ -8,3 +8,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Stay on the LTS line. Ubuntu's interim releases (25.04, 25.10, ...) are
+    # supported for 9 months, which is the wrong trade for an always-on
+    # appliance; 24.04 is supported to 2029. Patch updates within the pinned
+    # release still come through.
+    ignore:
+      - dependency-name: ubuntu
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
