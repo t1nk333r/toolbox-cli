@@ -16,7 +16,7 @@ and update your row when done.
 | 004 | Install the `ya` binary so yazi's archive extraction works | P1 | S | — | DONE (merged, `87dc56d`) |
 | 005 | Gate CI on a smoke test that proves every advertised tool runs | P1 | S | 004 (soft) | DONE (merged, `f86aad6`) |
 | 006 | Document the TrueNAS SCALE deployment path (additive only) | P2 | S | — | DONE (merged, `07ebfe7`) |
-| 007 | Pin tool versions and publish immutable SHA image tags | P2 | M | 005 (hard) | TODO — not executed, changes build behavior |
+| 007 | Pin tool versions and publish immutable SHA image tags | P2 | M | 005 (hard) | DONE — pins verified against a real build |
 | 008 | Run as a non-root user and harden for always-on use | P2 | M | 005 (hard), 006 (soft) | DONE — executed with two documented deviations, see below |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
@@ -157,6 +157,21 @@ preview either.
 X11/waypipe forwarding was considered for running real GUI viewers in the
 container and rejected: ~154MB of X client libraries for something `open`
 already achieves at zero image cost.
+
+### Plan 007 execution note
+
+Executed as written, with one addition: the plan says "do not run docker build",
+but the pinned URLs and the `${GLOW_VERSION#v}` expansion are exactly the things
+a build proves and static checks cannot. A full `--no-cache` build confirmed the
+installed binaries match the pins — eza v0.23.5, dua 2.45.0, yazi 26.9.1, glow
+3.0.0 — LazyVim checked out at `803bc181` with `.git` dropped, and the smoke
+test green.
+
+`scripts/latest-versions.sh` also grew a `--check` mode that exits 1 when a pin
+is behind, so a scheduled job can notice staleness; verified by planting a stale
+pin. The `dua` asset embeds the tag *with* its `v`, `glow` *without* — the two
+are easy to transpose and both produce a 404, so the table in the plan is worth
+keeping.
 
 ### Known gap
 

@@ -217,6 +217,35 @@ Nothing installed that way survives a rebuild; add lasting tools to the
 The container's PID 1 remains root because sshd needs it — for host keys,
 privilege separation, and binding port 22. Only your *session* is unprivileged.
 
+## Image tags and rollback
+
+Every push to `main` publishes two tags:
+
+- `:latest` — moves with every build
+- `:<commit-sha>` — immutable, never overwritten
+
+To roll back, point `compose.yaml` at a SHA tag and re-pull:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Tool versions are pinned with build `ARG`s (`EZA_VERSION`, `DUA_VERSION`,
+`YAZI_VERSION`, `GLOW_VERSION`, `LAZYVIM_REF`), so a given commit always builds
+the same image. Without them, two builds of one commit a month apart produce
+different images and there is nothing to roll back *to*.
+
+Dependabot watches the `FROM` line and the GitHub Actions, but **not** those
+release `ARG`s, so bumping them is deliberate:
+
+```bash
+scripts/latest-versions.sh           # show pinned vs. latest
+scripts/latest-versions.sh --check   # exit 1 if any pin is behind
+```
+
+Edit the `ARG`s, then let CI's smoke test vet the result — a withdrawn or
+mistyped tag fails the build rather than reaching the registry.
+
 ## Using the published image
 
 ```bash
